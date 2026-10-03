@@ -12,14 +12,11 @@
     --text-main: #f0f4f8;
     --text-muted: #8a99ad;
     --cyan: #00e5ff;
-    --cyan-glow: rgba(0, 229, 255, 0.4);
     --red: #ff1744;
-    --red-glow: rgba(255, 23, 68, 0.4);
     --gold: #ffd700;
-    --gold-glow: rgba(255, 215, 0, 0.4);
     --green: #00e676;
     --font-mono: 'Courier New', Courier, monospace;
-    --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-sans: system-ui, -apple-system, sans-serif;
   }
 
   * {
@@ -38,16 +35,15 @@
     align-items: center;
     min-height: 100vh;
     padding: 12px;
-    overflow-x: hidden;
   }
 
   .game-wrapper {
     width: 100%;
-    max-width: 800px;
+    max-width: 820px;
     background: var(--surface);
     border: 1px solid var(--surface-border);
     border-radius: 12px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -229,6 +225,8 @@
       <div class="key-item"><kbd>E</kbd> Channel Heal</div>
       <div class="key-item"><kbd>V</kbd> God Mode (5 Kills)</div>
       <div class="key-item"><kbd>1-8 / Q</kbd> Weapon Select</div>
+      <div class="key-item"><kbd>G</kbd> Deflect Shield</div>
+      <div class="key-item"><kbd>SHIFT</kbd> Dash</div>
     </div>
   </div>
 </div>
@@ -240,7 +238,7 @@ const ctx = canvas.getContext('2d');
 const WIDTH = 800;
 const HEIGHT = 500;
 
-// Audio System
+// Web Audio Synth
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 let audioCtx = null;
 
@@ -259,7 +257,7 @@ function playSfx(type) {
 
     if (type === 'shoot') {
       osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(320, now);
+      osc.frequency.setValueAtTime(300, now);
       osc.frequency.exponentialRampToValueAtTime(60, now + 0.08);
       gain.gain.setValueAtTime(0.12, now);
       gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
@@ -272,8 +270,8 @@ function playSfx(type) {
       osc.start(now); osc.stop(now + 0.03);
     } else if (type === 'reload') {
       osc.type = 'triangle';
-      osc.frequency.setValueAtTime(180, now);
-      osc.frequency.linearRampToValueAtTime(450, now + 0.12);
+      osc.frequency.setValueAtTime(200, now);
+      osc.frequency.linearRampToValueAtTime(500, now + 0.12);
       gain.gain.setValueAtTime(0.08, now);
       gain.gain.linearRampToValueAtTime(0.01, now + 0.12);
       osc.start(now); osc.stop(now + 0.12);
@@ -288,7 +286,7 @@ function playSfx(type) {
   } catch(e){}
 }
 
-// Map Safe Spawns & Neon Walls
+// Map Safe Spawns & Neon Barriers
 const SAFE_SPAWNS = [
   {x: 60, y: 60}, {x: 400, y: 60}, {x: 740, y: 60},
   {x: 60, y: 440}, {x: 400, y: 440}, {x: 740, y: 440},
@@ -302,6 +300,7 @@ const WALLS = [
   {x: 350, y: 140, w: 100, h: 20}, {x: 350, y: 340, w: 100, h: 20}
 ];
 
+// 8 Non-burst Weapons
 const WEAPONS = [
   { name: "Pistol", mag: 12, speed: 11, damage: 25, fireRate: 220, spread: 0.04 },
   { name: "Shotgun", mag: 6, speed: 9, damage: 14, fireRate: 650, spread: 0.22, pellets: 5 },
@@ -341,6 +340,8 @@ window.addEventListener('keydown', e => {
   if (k === 'v') player.activateGodMode();
   if (k === 't') toggleTeam();
   if (k === 'x') restartMatch();
+  if (k === 'g') player.activateShield();
+  if (e.shiftKey || e.code === 'Space') player.dash();
 });
 
 window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
@@ -373,6 +374,9 @@ class Player {
     this.godTimer = 0;
     this.godCooldown = 0;
     this.healCooldown = 0;
+    this.angle = 0;
+    this.deflectActive = false;
+    this.deflectTimer = 0;
     this.respawn();
   }
 
@@ -404,8 +408,26 @@ class Player {
     }
   }
 
+  activateShield() {
+    if (this.deflectTimer <= 0) {
+      this.deflectActive = true;
+      this.deflectTimer = 2.0;
+    }
+  }
+
+  dash() {
+    const dashDist = 45;
+    this.x += Math.cos(this.angle) * dashDist;
+    this.y += Math.sin(this.angle) * dashDist;
+  }
+
   update(dt) {
     if (this.spawnShield > 0) this.spawnShield -= dt;
+    if (this.deflectActive) {
+      this.deflectTimer -= dt;
+      if (this.deflectTimer <= 0) this.deflectActive = false;
+    }
+
     if (this.godActive) {
       this.godTimer -= dt;
       if (this.godTimer <= 0) {
@@ -433,6 +455,8 @@ class Player {
       if (keys['a'] || keys['arrowleft']) dx -= 1;
       if (keys['d'] || keys['arrowright']) dx += 1;
 
+      this.angle = Math.atan2(mousePos.y - this.y, mousePos.x - this.x);
+
       if (keys['e']) {
         if (this.hp < 100) {
           this.hp = Math.min(100, this.hp + 25 * dt);
@@ -448,13 +472,17 @@ class Player {
       if (targets.length > 0) {
         let target = targets[0];
         let dist = Math.hypot(target.x - this.x, target.y - this.y);
+        this.angle = Math.atan2(target.y - this.y, target.x - this.x);
+        
         if (dist > 120) {
           dx = (target.x - this.x) / dist;
           dy = (target.y - this.y) / dist;
         }
+        
+        // Controlled, low-accuracy firing logic (Stormtrooper mode)
         if (Math.random() < 0.02) {
-          const errX = target.x + (Math.random() - 0.5) * 120;
-          const errY = target.y + (Math.random() - 0.5) * 120;
+          const errX = target.x + (Math.random() - 0.5) * 140;
+          const errY = target.y + (Math.random() - 0.5) * 140;
           this.shoot(errX, errY);
         }
       }
@@ -467,7 +495,7 @@ class Player {
       this.y += (dy / len) * speed * dt;
     }
 
-    // Hard Ejection Physics against Walls
+    // Hard Ejection Physics against Cover Walls
     this.x = Math.max(this.radius, Math.min(WIDTH - this.radius, this.x));
     this.y = Math.max(this.radius, Math.min(HEIGHT - this.radius, this.y));
 
@@ -511,8 +539,8 @@ class Player {
     for (let i = 0; i < count; i++) {
       const spread = (Math.random() - 0.5) * wpn.spread;
       bullets.push({
-        x: this.x,
-        y: this.y,
+        x: this.x + Math.cos(angle) * (this.radius + 10),
+        y: this.y + Math.sin(angle) * (this.radius + 10),
         vx: Math.cos(angle + spread) * wpn.speed * 400,
         vy: Math.sin(angle + spread) * wpn.speed * 400,
         damage: wpn.damage,
@@ -523,7 +551,7 @@ class Player {
   }
 
   takeDamage(amount, attacker) {
-    if (this.spawnShield > 0 || this.godActive) return;
+    if (this.spawnShield > 0 || this.godActive || this.deflectActive) return;
     this.hp -= amount;
     if (this.hp <= 0) {
       if (attacker && attacker.team !== this.team) {
@@ -540,6 +568,15 @@ class Player {
     ctx.save();
     ctx.translate(this.x, this.y);
 
+    // Healing Aura
+    if (!this.isAI && keys['e'] && this.hp < 100) {
+      ctx.beginPath();
+      ctx.arc(0, 0, this.radius + 10, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0, 230, 118, 0.25)';
+      ctx.fill();
+    }
+
+    // God Mode Aura
     if (this.godActive) {
       ctx.beginPath();
       ctx.arc(0, 0, this.radius + 6, 0, Math.PI * 2);
@@ -547,6 +584,7 @@ class Player {
       ctx.fill();
     }
 
+    // Spawn Protection Shield
     if (this.spawnShield > 0) {
       ctx.beginPath();
       ctx.arc(0, 0, this.radius + 4, 0, Math.PI * 2);
@@ -555,21 +593,39 @@ class Player {
       ctx.stroke();
     }
 
+    // Deflect Shield
+    if (this.deflectActive) {
+      ctx.beginPath();
+      ctx.arc(0, 0, this.radius + 8, 0, Math.PI * 2);
+      ctx.strokeStyle = '#ffd700';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // Player Body
     ctx.beginPath();
     ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
     ctx.fillStyle = this.team === 'cyan' ? '#00e5ff' : '#ff1744';
     ctx.fill();
 
+    // VISIBLE GUN BARREL
+    ctx.save();
+    ctx.rotate(this.angle);
+    ctx.fillStyle = '#f0f4f8';
+    ctx.fillRect(4, -3, 14, 6);
+    ctx.restore();
+
+    // Name Label
     ctx.fillStyle = '#fff';
     ctx.font = '10px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(this.name, 0, -16);
+    ctx.fillText(this.name, 0, -18);
 
     ctx.restore();
   }
 }
 
-// Global Match State
+// Global Entities
 let player = new Player(false, playerTeam, 'YOU');
 let entities = [];
 let bullets = [];
@@ -609,7 +665,6 @@ function restartMatch() {
   setupMatch();
 }
 
-// Initial Boot
 setupMatch();
 
 let lastTime = performance.now();
@@ -650,7 +705,7 @@ function loop(now) {
   }
 
   // Render Frame
-  ctx.fillStyle = '#000';
+  ctx.fillStyle = '#000000';
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
   ctx.fillStyle = '#12161f';
@@ -670,7 +725,15 @@ function loop(now) {
 
   entities.forEach(e => e.draw());
 
-  // HUD Updates
+  // HUD Prompts
+  if (player.ammo === 0) {
+    ctx.fillStyle = '#ff1744';
+    ctx.font = 'bold 16px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText("EMPTY! PRESS R", player.x, player.y + 28);
+  }
+
+  // HUD Elements
   document.getElementById('score-cyan').innerText = cyanKills;
   document.getElementById('score-red').innerText = redKills;
 
