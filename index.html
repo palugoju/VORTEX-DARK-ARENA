@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VORTEX: DARK ARENA</title>
+<style>
+  :root {
+    --bg-base: #0a0c10;
+    --surface: #12161f;
+    --surface-border: #1e2638;
+    --text-main: #f0f4f8;
+    --text-muted: #8a99ad;
+    --cyan: #00e5ff;
+    --cyan-glow: rgba(0, 229, 255, 0.4);
+    --red: #ff1744;
+    --red-glow: rgba(255, 23, 68, 0.4);
+    --gold: #ffd700;
+    --gold-glow: rgba(255, 215, 0, 0.4);
+    --green: #00e676;
+    --font-mono: 'Courier New', Courier, monospace;
+    --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+  }
+
+  body {
+    background: var(--bg-base);
+    color: var(--text-main);
+    font-family: var(--font-sans);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 12px;
+    overflow-x: hidden;
+  }
+
+  .game-wrapper {
+    width: 100%;
+    max-width: 800px;
+    background: var(--surface);
+    border: 1px solid var(--surface-border);
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .game-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    background: rgba(10, 12, 16, 0.85);
+    border-bottom: 1px solid var(--surface-border);
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .title-area h1 {
+    font-size: 1.1rem;
+    font-weight: 900;
+    letter-spacing: 2px;
+    background: linear-gradient(90deg, var(--cyan), var(--text-main));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-transform: uppercase;
+  }
+
+  .title-area p {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+  }
+
+  .scoreboard {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-family: var(--font-mono);
+    font-weight: bold;
+    font-size: 0.9rem;
+  }
+
+  .team-cyan { color: var(--cyan); }
+  .team-red { color: var(--red); }
+
+  .timer-box {
+    background: #000;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--surface-border);
+    color: var(--gold);
+  }
+
+  .canvas-container {
+    position: relative;
+    width: 100%;
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    aspect-ratio: 8 / 5;
+  }
+
+  canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: crosshair;
+  }
+
+  .control-deck {
+    padding: 10px 16px;
+    background: rgba(10, 12, 16, 0.6);
+    border-top: 1px solid var(--surface-border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .actions-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .btn-group {
+    display: flex;
+    gap: 6px;
+  }
+
+  .btn {
+    background: var(--surface);
+    color: var(--text-main);
+    border: 1px solid var(--surface-border);
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .btn:hover {
+    background: var(--surface-border);
+    color: #fff;
+  }
+
+  .btn-cyan { border-color: var(--cyan); color: var(--cyan); }
+  .btn-cyan:hover { background: var(--cyan); color: #000; }
+
+  .btn-red { border-color: var(--red); color: var(--red); }
+  .btn-red:hover { background: var(--red); color: #fff; }
+
+  .btn-gold { border-color: var(--gold); color: var(--gold); }
+  .btn-gold:hover { background: var(--gold); color: #000; }
+
+  .key-legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 4px;
+    font-size: 0.68rem;
+    color: var(--text-muted);
+  }
+
+  .key-item {
+    background: rgba(255, 255, 255, 0.03);
+    padding: 3px 6px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  kbd {
+    background: var(--surface-border);
+    color: var(--text-main);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+  }
+</style>
+</head>
+<body>
+
+<div class="game-wrapper">
+  <div class="game-header">
+    <div class="title-area">
+      <h1>VORTEX: DARK ARENA</h1>
+      <p>2v2 Tactical Top-Down Shooter</p>
+    </div>
+    <div class="scoreboard">
+      <div>CYAN: <span id="score-cyan" class="team-cyan">0</span></div>
+      <div class="timer-box" id="timer">05:00</div>
+      <div>RED: <span id="score-red" class="team-red">0</span></div>
+    </div>
+  </div>
+
+  <div class="canvas-container">
+    <canvas id="gameCanvas" width="800" height="500"></canvas>
+  </div>
+
+  <div class="control-deck">
+    <div class="actions-row">
+      <div class="btn-group">
+        <button class="btn btn-cyan" id="btn-team">SWITCH TEAM [T]</button>
+        <button class="btn btn-red" id="btn-add-ai">+ ADD AI</button>
+        <button class="btn btn-gold" id="btn-restart">RESTART [X]</button>
+      </div>
+      <div style="font-size:0.75rem; color:var(--text-muted)">
+        WEAPON: <span id="wpn-name" style="color:#fff; font-weight:bold">PISTOL</span> | MAG: <span id="wpn-mag" style="color:var(--gold)">12/12</span>
+      </div>
+    </div>
+
+    <div class="key-legend">
+      <div class="key-item"><kbd>WASD</kbd> Move</div>
+      <div class="key-item"><kbd>L-CLICK</kbd> Shoot</div>
+      <div class="key-item"><kbd>R</kbd> Reload</div>
+      <div class="key-item"><kbd>E</kbd> Channel Heal</div>
+      <div class="key-item"><kbd>V</kbd> God Mode (5 Kills)</div>
+      <div class="key-item"><kbd>1-8 / Q</kbd> Weapon Select</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const WIDTH = 800;
+const HEIGHT = 500;
+
+// Audio System
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+
+function initAudio() {
+  if (!audioCtx) audioCtx = new AudioCtx();
+}
+
+function playSfx(type) {
+  if (!audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+
+    if (type === 'shoot') {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(320, now);
+      osc.frequency.exponentialRampToValueAtTime(60, now + 0.08);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+      osc.start(now); osc.stop(now + 0.08);
+    } else if (type === 'empty') {
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(700, now);
+      gain.gain.setValueAtTime(0.04, now);
+      gain.gain.linearRampToValueAtTime(0.01, now + 0.03);
+      osc.start(now); osc.stop(now + 0.03);
+    } else if (type === 'reload') {
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(180, now);
+      osc.frequency.linearRampToValueAtTime(450, now + 0.12);
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.linearRampToValueAtTime(0.01, now + 0.12);
+      osc.start(now); osc.stop(now + 0.12);
+    } else if (type === 'heal') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(350, now);
+      osc.frequency.linearRampToValueAtTime(550, now + 0.04);
+      gain.gain.setValueAtTime(0.03, now);
+      gain.gain.linearRampToValueAtTime(0.01, now + 0.04);
+      osc.start(now); osc.stop(now + 0.04);
+    }
+  } catch(e){}
+}
+
+// Map Safe Spawns & Neon Walls
+const SAFE_SPAWNS = [
+  {x: 60, y: 60}, {x: 400, y: 60}, {x: 740, y: 60},
+  {x: 60, y: 440}, {x: 400, y: 440}, {x: 740, y: 440},
+  {x: 60, y: 250}, {x: 740, y: 250}
+];
+
+const WALLS = [
+  {x: 140, y: 90, w: 100, h: 20}, {x: 560, y: 90, w: 100, h: 20},
+  {x: 140, y: 390, w: 100, h: 20}, {x: 560, y: 390, w: 100, h: 20},
+  {x: 220, y: 200, w: 20, h: 100}, {x: 560, y: 200, w: 20, h: 100},
+  {x: 350, y: 140, w: 100, h: 20}, {x: 350, y: 340, w: 100, h: 20}
+];
+
+const WEAPONS = [
+  { name: "Pistol", mag: 12, speed: 11, damage: 25, fireRate: 220, spread: 0.04 },
+  { name: "Shotgun", mag: 6, speed: 9, damage: 14, fireRate: 650, spread: 0.22, pellets: 5 },
+  { name: "SMG", mag: 30, speed: 12, damage: 12, fireRate: 90, spread: 0.12 },
+  { name: "Sniper", mag: 4, speed: 18, damage: 95, fireRate: 850, spread: 0.01 },
+  { name: "Plasma", mag: 10, speed: 8, damage: 40, fireRate: 350, spread: 0.02 },
+  { name: "Rocket", mag: 3, speed: 7, damage: 85, fireRate: 950, spread: 0.02 },
+  { name: "Rifle", mag: 20, speed: 13, damage: 22, fireRate: 150, spread: 0.04 },
+  { name: "Flamer", mag: 40, speed: 6, damage: 6, fireRate: 50, spread: 0.28 }
+];
+
+let matchTime = 300;
+let cyanKills = 0;
+let redKills = 0;
+let playerTeam = 'cyan';
+
+const keys = {};
+let mousePos = { x: 400, y: 250 };
+let isMouseDown = false;
+
+window.addEventListener('keydown', e => {
+  initAudio();
+  const k = e.key.toLowerCase();
+  keys[k] = true;
+
+  if (['1','2','3','4','5','6','7','8'].includes(e.key)) {
+    player.weaponIdx = parseInt(e.key) - 1;
+    player.ammo = WEAPONS[player.weaponIdx].mag;
+    player.reloading = false;
+  }
+  if (k === 'q') {
+    player.weaponIdx = (player.weaponIdx + 1) % WEAPONS.length;
+    player.ammo = WEAPONS[player.weaponIdx].mag;
+    player.reloading = false;
+  }
+  if (k === 'r') player.reload();
+  if (k === 'v') player.activateGodMode();
+  if (k === 't') toggleTeam();
+  if (k === 'x') restartMatch();
+});
+
+window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  mousePos.x = (e.clientX - rect.left) * (WIDTH / rect.width);
+  mousePos.y = (e.clientY - rect.top) * (HEIGHT / rect.height);
+});
+canvas.addEventListener('mousedown', () => { initAudio(); isMouseDown = true; });
+canvas.addEventListener('mouseup', () => { isMouseDown = false; });
+
+document.getElementById('btn-team').addEventListener('click', toggleTeam);
+document.getElementById('btn-add-ai').addEventListener('click', addExtraAI);
+document.getElementById('btn-restart').addEventListener('click', restartMatch);
+
+function getRandomSpawn() {
+  return SAFE_SPAWNS[Math.floor(Math.random() * SAFE_SPAWNS.length)];
+}
+
+class Player {
+  constructor(isAI, team, name) {
+    this.isAI = isAI;
+    this.team = team;
+    this.name = name;
+    this.radius = 12;
+    this.weaponIdx = 0;
+    this.kills = 0;
+    this.godActive = false;
+    this.godTimer = 0;
+    this.godCooldown = 0;
+    this.healCooldown = 0;
+    this.respawn();
+  }
+
+  respawn() {
+    const sp = getRandomSpawn();
+    this.x = sp.x;
+    this.y = sp.y;
+    this.hp = 100;
+    this.ammo = WEAPONS[this.weaponIdx].mag;
+    this.reloading = false;
+    this.reloadTimer = 0;
+    this.lastShot = 0;
+    this.spawnShield = 3.0;
+  }
+
+  reload() {
+    if (this.reloading || this.ammo === WEAPONS[this.weaponIdx].mag) return;
+    this.reloading = true;
+    this.reloadTimer = 1.2;
+    playSfx('reload');
+  }
+
+  activateGodMode() {
+    if (this.isAI) return;
+    if (this.kills >= 5 && !this.godActive && this.godCooldown <= 0) {
+      this.godActive = true;
+      this.godTimer = 60.0;
+      this.kills = 0;
+    }
+  }
+
+  update(dt) {
+    if (this.spawnShield > 0) this.spawnShield -= dt;
+    if (this.godActive) {
+      this.godTimer -= dt;
+      if (this.godTimer <= 0) {
+        this.godActive = false;
+        this.godCooldown = 20.0;
+      }
+    } else if (this.godCooldown > 0) {
+      this.godCooldown -= dt;
+    }
+
+    if (this.healCooldown > 0) this.healCooldown -= dt;
+
+    if (this.reloading) {
+      this.reloadTimer -= dt;
+      if (this.reloadTimer <= 0) {
+        this.ammo = WEAPONS[this.weaponIdx].mag;
+        this.reloading = false;
+      }
+    }
+
+    let dx = 0, dy = 0;
+    if (!this.isAI) {
+      if (keys['w'] || keys['arrowup']) dy -= 1;
+      if (keys['s'] || keys['arrowdown']) dy += 1;
+      if (keys['a'] || keys['arrowleft']) dx -= 1;
+      if (keys['d'] || keys['arrowright']) dx += 1;
+
+      if (keys['e']) {
+        if (this.hp < 100) {
+          this.hp = Math.min(100, this.hp + 25 * dt);
+          playSfx('heal');
+          if (this.hp === 100) this.healCooldown = 12.0;
+        }
+      }
+
+      if (isMouseDown) this.shoot(mousePos.x, mousePos.y);
+
+    } else {
+      let targets = entities.filter(e => e.team !== this.team);
+      if (targets.length > 0) {
+        let target = targets[0];
+        let dist = Math.hypot(target.x - this.x, target.y - this.y);
+        if (dist > 120) {
+          dx = (target.x - this.x) / dist;
+          dy = (target.y - this.y) / dist;
+        }
+        if (Math.random() < 0.02) {
+          const errX = target.x + (Math.random() - 0.5) * 120;
+          const errY = target.y + (Math.random() - 0.5) * 120;
+          this.shoot(errX, errY);
+        }
+      }
+    }
+
+    const speed = this.isAI ? 110 : 180;
+    if (dx !== 0 || dy !== 0) {
+      const len = Math.hypot(dx, dy);
+      this.x += (dx / len) * speed * dt;
+      this.y += (dy / len) * speed * dt;
+    }
+
+    // Hard Ejection Physics against Walls
+    this.x = Math.max(this.radius, Math.min(WIDTH - this.radius, this.x));
+    this.y = Math.max(this.radius, Math.min(HEIGHT - this.radius, this.y));
+
+    for (let w of WALLS) {
+      let closestX = Math.max(w.x, Math.min(this.x, w.x + w.w));
+      let closestY = Math.max(w.y, Math.min(this.y, w.y + w.h));
+      let distX = this.x - closestX;
+      let distY = this.y - closestY;
+      let distance = Math.hypot(distX, distY);
+
+      if (distance < this.radius) {
+        let overlap = this.radius - distance;
+        if (distance === 0) { this.x += overlap; } 
+        else {
+          this.x += (distX / distance) * overlap;
+          this.y += (distY / distance) * overlap;
+        }
+      }
+    }
+  }
+
+  shoot(tx, ty) {
+    if (this.reloading || this.spawnShield > 0) return;
+    const now = performance.now();
+    const wpn = WEAPONS[this.weaponIdx];
+    if (now - this.lastShot < wpn.fireRate) return;
+
+    if (this.ammo <= 0) {
+      playSfx('empty');
+      this.lastShot = now;
+      return;
+    }
+
+    this.ammo--;
+    this.lastShot = now;
+    playSfx('shoot');
+
+    const angle = Math.atan2(ty - this.y, tx - this.x);
+    const count = wpn.pellets || 1;
+
+    for (let i = 0; i < count; i++) {
+      const spread = (Math.random() - 0.5) * wpn.spread;
+      bullets.push({
+        x: this.x,
+        y: this.y,
+        vx: Math.cos(angle + spread) * wpn.speed * 400,
+        vy: Math.sin(angle + spread) * wpn.speed * 400,
+        damage: wpn.damage,
+        owner: this,
+        team: this.team
+      });
+    }
+  }
+
+  takeDamage(amount, attacker) {
+    if (this.spawnShield > 0 || this.godActive) return;
+    this.hp -= amount;
+    if (this.hp <= 0) {
+      if (attacker && attacker.team !== this.team) {
+        if (attacker.team === 'cyan') cyanKills++; else redKills++;
+        if (!attacker.isAI && attacker.godCooldown <= 0 && !attacker.godActive) {
+          attacker.kills = Math.min(5, attacker.kills + 1);
+        }
+      }
+      this.respawn();
+    }
+  }
+
+  draw() {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+
+    if (this.godActive) {
+      ctx.beginPath();
+      ctx.arc(0, 0, this.radius + 6, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 215, 0, 0.4)';
+      ctx.fill();
+    }
+
+    if (this.spawnShield > 0) {
+      ctx.beginPath();
+      ctx.arc(0, 0, this.radius + 4, 0, Math.PI * 2);
+      ctx.strokeStyle = '#00e5ff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    ctx.beginPath();
+    ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+    ctx.fillStyle = this.team === 'cyan' ? '#00e5ff' : '#ff1744';
+    ctx.fill();
+
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(this.name, 0, -16);
+
+    ctx.restore();
+  }
+}
+
+// Global Match State
+let player = new Player(false, playerTeam, 'YOU');
+let entities = [];
+let bullets = [];
+
+function setupMatch() {
+  player.team = playerTeam;
+  player.respawn();
+  entities = [player];
+
+  if (playerTeam === 'cyan') {
+    entities.push(new Player(true, 'cyan', 'ALLY'));
+    entities.push(new Player(true, 'red', 'RED 1'));
+    entities.push(new Player(true, 'red', 'RED 2'));
+  } else {
+    entities.push(new Player(true, 'red', 'ALLY'));
+    entities.push(new Player(true, 'cyan', 'CYAN 1'));
+    entities.push(new Player(true, 'cyan', 'CYAN 2'));
+  }
+}
+
+function toggleTeam() {
+  playerTeam = (playerTeam === 'cyan') ? 'red' : 'cyan';
+  document.getElementById('btn-team').innerText = `TEAM: ${playerTeam.toUpperCase()} [T]`;
+  restartMatch();
+}
+
+function addExtraAI() {
+  const team = Math.random() < 0.5 ? 'cyan' : 'red';
+  entities.push(new Player(true, team, `BOT ${entities.length}`));
+}
+
+function restartMatch() {
+  cyanKills = 0;
+  redKills = 0;
+  matchTime = 300;
+  bullets = [];
+  setupMatch();
+}
+
+// Initial Boot
+setupMatch();
+
+let lastTime = performance.now();
+
+function loop(now) {
+  const dt = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+
+  if (matchTime > 0) matchTime -= dt;
+
+  entities.forEach(e => e.update(dt));
+
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    let b = bullets[i];
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+
+    if (b.x < 0 || b.x > WIDTH || b.y < 0 || b.y > HEIGHT) {
+      bullets.splice(i, 1);
+      continue;
+    }
+
+    let hitWall = false;
+    for (let w of WALLS) {
+      if (b.x > w.x && b.x < w.x + w.w && b.y > w.y && b.y < w.y + w.h) {
+        hitWall = true; break;
+      }
+    }
+    if (hitWall) { bullets.splice(i, 1); continue; }
+
+    for (let e of entities) {
+      if (e.team !== b.team && Math.hypot(e.x - b.x, e.y - b.y) < e.radius) {
+        e.takeDamage(b.damage, b.owner);
+        bullets.splice(i, 1);
+        break;
+      }
+    }
+  }
+
+  // Render Frame
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  ctx.fillStyle = '#12161f';
+  ctx.strokeStyle = '#00e5ff';
+  ctx.lineWidth = 1;
+  WALLS.forEach(w => {
+    ctx.fillRect(w.x, w.y, w.w, w.h);
+    ctx.strokeRect(w.x, w.y, w.w, w.h);
+  });
+
+  ctx.fillStyle = '#fff';
+  bullets.forEach(b => {
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  entities.forEach(e => e.draw());
+
+  // HUD Updates
+  document.getElementById('score-cyan').innerText = cyanKills;
+  document.getElementById('score-red').innerText = redKills;
+
+  const m = Math.floor(Math.max(0, matchTime) / 60);
+  const s = Math.floor(Math.max(0, matchTime) % 60);
+  document.getElementById('timer').innerText = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+
+  const currentWpn = WEAPONS[player.weaponIdx];
+  document.getElementById('wpn-name').innerText = currentWpn.name.toUpperCase();
+  document.getElementById('wpn-mag').innerText = player.reloading ? "RELOADING..." : `${player.ammo}/${currentWpn.mag}`;
+
+  requestAnimationFrame(loop);
+}
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
